@@ -1,7 +1,6 @@
 #include "types.h"
 #include "x86.h"
 #include "defs.h"
-#include "date.h"
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
@@ -88,4 +87,17 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int
+sys_setTicket(void)
+{
+  int ticketNum;
+
+  if(argint(0, &ticketNum) < 0)
+    return -1; 
+
+  struct proc *p = myproc();
+  p->mlfq.lotteryTicket = ticketNum;
+  return 0;
 }

@@ -88,6 +88,11 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  cmostime(&(p->mlfq.arrivalTime));
+  p->mlfq.queueNumber = 1;
+  p->mlfq.executedCycleNumber = 1;
+  p->mlfq.remainedPriority = 1;
+  p->mlfq.lotteryTicket = 10;
 
   release(&ptable.lock);
 
@@ -125,6 +130,15 @@ userinit(void)
 
   p = allocproc();
   
+
+  //----
+  // cmostime(&(p->mlfq.arrivalTime));
+  // p->mlfq.queueNumber = 1;
+  // p->mlfq.executedCycleNumber = 1;
+  // p->mlfq.remainedPriority = 1;
+  // p->mlfq.lotteryTicket = 10;
+  //----
+
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -196,6 +210,15 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+
+    //----
+  cmostime(&(np->mlfq.arrivalTime));
+  np->mlfq.queueNumber = 1;
+  np->mlfq.executedCycleNumber = 1;
+  np->mlfq.remainedPriority = 1;
+  np->mlfq.lotteryTicket = 10;
+  //----
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -319,41 +342,217 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// void
+// schedulerrr(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     // Loop over process table looking for process to run.
+//     acquire(&ptable.lock);
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if(p->state != RUNNABLE)
+//         continue;
+//       cprintf("process name:%s\n",p->name);
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
+
+int findLottery(){
+  struct proc *p;
+  struct proc *winner;
+  int ticketSum = 0;
+  int foundPid = -1;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+      continue;
+    if(p->mlfq.queueNumber != 1)
+      continue;
+
+    ticketSum = ticketSum + p->mlfq.lotteryTicket;  
+  }
+
+  struct rtcdate currentTime;
+  cmostime(&currentTime);
+  int selectedTicket;
+  if(ticketSum != 0)
+    selectedTicket= (currentTime.second + currentTime.minute * 60 + currentTime.hour*98)%ticketSum;
+
+  // cprintf("Ticket Sum: %d\n",ticketSum);
+  
+
+  if(ticketSum != 0){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->mlfq.queueNumber != 1)
+        continue;
+
+      if( (selectedTicket - p->mlfq.lotteryTicket) <= 0 ){
+        winner = p;
+        foundPid = winner->pid;
+        break;
+      }
+      else{
+        selectedTicket -= p->mlfq.lotteryTicket;
+        continue;
+      }
+    }
+  }
+  return foundPid;
+}
+
+int findHRRN(){
+  struct proc *p;
+  
+  float maxHRRN = -1;
+  struct rtcdate currentTime;
+  int waitingTime;
+  float HRRN;
+  struct proc *winner;
+  int foundPid = -1;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+      continue;
+    if(p->mlfq.queueNumber != 2)
+      continue;
+
+    cmostime(&currentTime);
+    waitingTime = (currentTime.second - p->mlfq.arrivalTime.second) + (currentTime.minute - p->mlfq.arrivalTime.minute)*60 + (currentTime.hour - p->mlfq.arrivalTime.hour)*3600;
+    HRRN = waitingTime / p->mlfq.executedCycleNumber;
+    if( HRRN > maxHRRN ){
+      maxHRRN = HRRN;
+      winner = p;
+      foundPid = winner->pid;
+    }
+  }
+  
+  return foundPid;
+}
+
+int findSRPF(){
+  struct proc *p;
+  int foundPid = -1;
+  float minRemainedPriority = 280000;
+  struct proc *winner;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+        continue;
+    if(p->mlfq.queueNumber != 3)
+      continue;
+
+    // In order to select random between whose remained priority is the same, we always choose the first one.
+
+    if(p->mlfq.remainedPriority < minRemainedPriority){
+      winner = p;
+      foundPid = winner->pid;
+      minRemainedPriority = winner->mlfq.remainedPriority;
+    }    
+  }
+  return foundPid;
+}
+
+
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+  int queue[3] = {0,0,0};
+  int foundPid = -1;
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
+    //---
+
+    if( (foundPid = findLottery()) != -1) {
+      queue[0] = 1;
+      queue[1] = 0;
+      queue[2] = 0;
+    }
+    else if( (foundPid = findHRRN()) != -1) {
+      queue[0] = 0;
+      queue[1] = 1;
+      queue[2] = 0;
+    }
+    else if( (foundPid = findSRPF()) != -1) {
+      queue[0] = 0;
+      queue[1] = 0;
+      queue[2] = 1;
+    }
+    else{
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE)
+          continue;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        c->proc = 0;
+      }
+      release(&ptable.lock);
+      continue;
+    }
+    if(foundPid != -1){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->pid == foundPid){
+          c->proc = p;
+          if(queue[1] == 1)
+            c->proc->mlfq.executedCycleNumber+= 1;
+
+          if(queue[2] == 1){
+            if( (c->proc->mlfq.remainedPriority - 0.1) < 0)
+              c->proc->mlfq.remainedPriority = 0;
+            else  
+              c->proc->mlfq.remainedPriority = c->proc->mlfq.remainedPriority - 0.1;
+          }
+          break;
+        }
+      } 
       switchuvm(p);
       p->state = RUNNING;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
-
+    release(&ptable.lock);  
   }
 }
+
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -408,7 +607,6 @@ forkret(void)
     iinit(ROOTDEV);
     initlog(ROOTDEV);
   }
-
   // Return to "caller", actually trapret (see allocproc).
 }
 

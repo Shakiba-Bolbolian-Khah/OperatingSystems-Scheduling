@@ -1,3 +1,5 @@
+#include "date.h"
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -34,6 +36,16 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct MLFQ
+{
+  int queueNumber;
+  int lotteryTicket;
+  double remainedPriority;
+  struct rtcdate arrivalTime;
+  int executedCycleNumber;
+};
+
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -49,6 +61,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  // ----------
+  struct MLFQ mlfq;
 };
 
 // Process memory is laid out contiguously, low addresses first:
