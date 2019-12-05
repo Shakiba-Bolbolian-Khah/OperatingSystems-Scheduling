@@ -21,3 +21,7 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_setTicket 22
+#define SYS_changeQueue 23
+#define SYS_setLotteryTicket 24
+#define SYS_setSRPFPriority 25
+#define SYS_printInfo 26
