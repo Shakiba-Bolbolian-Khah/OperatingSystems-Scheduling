@@ -378,6 +378,15 @@ wait(void)
 //   }
 // }
 
+unsigned long randstate = 1;
+unsigned int
+rand()
+{
+  randstate = randstate * 1664525 + 1013904223;
+  return randstate;
+}
+
+
 int findLottery(){
   struct proc *p;
   struct proc *winner;
@@ -392,15 +401,9 @@ int findLottery(){
 
     ticketSum = ticketSum + p->mlfq.lotteryTicket;  
   }
-
-  struct rtcdate currentTime;
-  cmostime(&currentTime);
   int selectedTicket;
   if(ticketSum != 0)
-    selectedTicket= (currentTime.second + currentTime.minute * 60 + currentTime.hour*98544848)%ticketSum;
-
-  // cprintf("Ticket Sum: %d\n",ticketSum);
-  
+    selectedTicket = rand() % ticketSum;
 
   if(ticketSum != 0){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -440,7 +443,7 @@ int findHRRN(){
 
     cmostime(&currentTime);
     waitingTime = (currentTime.second - p->mlfq.arrivalTime.second) + (currentTime.minute - p->mlfq.arrivalTime.minute)*60 + (currentTime.hour - p->mlfq.arrivalTime.hour)*3600;
-    HRRN = waitingTime / p->mlfq.executedCycleNumber;
+    HRRN = (float) waitingTime / (float) p->mlfq.executedCycleNumber;
     if( HRRN > maxHRRN ){
       maxHRRN = HRRN;
       winner = p;
@@ -456,6 +459,7 @@ int findSRPF(){
   int foundPid = -1;
   float minRemainedPriority = 28000;
   struct proc *winner;
+  int repeatedMinNum = 1;
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state != RUNNABLE)
@@ -469,8 +473,27 @@ int findSRPF(){
       winner = p;
       foundPid = winner->pid;
       minRemainedPriority = winner->mlfq.remainedPriority;
-    }    
+      repeatedMinNum = 1;
+    }
+    else if(p->mlfq.remainedPriority == minRemainedPriority){
+      repeatedMinNum++;
+    }
   }
+
+  if(repeatedMinNum != 1){
+    int randNum = rand() % repeatedMinNum;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if((p->state != RUNNABLE) && (p->mlfq.queueNumber != 3) && (p->mlfq.remainedPriority == minRemainedPriority)){
+        if(randNum==1){
+          winner = p;
+          foundPid = winner->pid;
+          return foundPid;
+        }
+      }
+      randNum--;
+    }
+  }
+  
   return foundPid;
 }
 
@@ -526,8 +549,7 @@ scheduler(void)
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->pid == foundPid){
           c->proc = p;
-          if(queue[1] == 1)
-            c->proc->mlfq.executedCycleNumber+= 1;
+          c->proc->mlfq.executedCycleNumber+= 1;
 
           if(queue[2] == 1){
             if( (c->proc->mlfq.remainedPriority - 0.1) < 0)
@@ -804,7 +826,9 @@ floatToStr(float in, int afterpoint, char* res)
   float fpart = in - (float)ipart; 
   int i = intToStr(ipart, res, 0);
   res[i] = '.'; // add dot 
-  fpart = fpart * 10; 
+  for(int i = 0; i < afterpoint; i++){
+    fpart = fpart * 10; 
+  }
   intToStr((int)fpart, res + i + 1, afterpoint);  
 }
 
@@ -877,7 +901,7 @@ printState(struct proc *p)
 int
 printInfo(void)
 {
-  cprintf("name      pid  state     priority  ticket    queueNum  cycle  HRRN   createTime\n");
+  cprintf("name      pid  state     priority  ticket  queueNum  cycle  HRRN     createTime\n");
   cprintf("-------------------------------------------------------------------------------\n");
   
   struct proc *p;
@@ -898,12 +922,12 @@ printInfo(void)
     floatToStr(p->mlfq.remainedPriority,1,buf);
     cprintf("%s", buf);
     size = strlen(buf);
-    for (int i = 0; i < 10 - size; i++)
+    for(int i = 0; i < 10 - size; i++)
       cprintf(" ");
     cprintf("%d", p->mlfq.lotteryTicket);
     intToStr(p->mlfq.lotteryTicket,buf,0);
     size = strlen(buf);
-    for (int i = 0; i < 10 - size; i++)
+    for(int i = 0; i < 8 - size; i++)
       cprintf(" ");
     cprintf("%d", p->mlfq.queueNumber);
     intToStr(p->mlfq.queueNumber,buf,0);
@@ -920,11 +944,11 @@ printInfo(void)
     float HRRN;
     cmostime(&currentTime);
     waitingTime = (currentTime.second - p->mlfq.arrivalTime.second) + (currentTime.minute - p->mlfq.arrivalTime.minute)*60 + (currentTime.hour - p->mlfq.arrivalTime.hour)*3600;
-    HRRN = waitingTime / p->mlfq.executedCycleNumber;
-    floatToStr(HRRN, 1, buf);
+    HRRN = (float) waitingTime /(float) p->mlfq.executedCycleNumber;
+    floatToStr(HRRN, 3, buf);
     cprintf("%s",buf);
     size = strlen(buf);
-    for (int i = 0; i < 7 - size; i++)
+    for (int i = 0; i < 9 - size; i++)
       cprintf(" ");
 
     cprintf("%d:%d:%d", p->mlfq.arrivalTime.hour, p->mlfq.arrivalTime.minute,p->mlfq.arrivalTime.second);

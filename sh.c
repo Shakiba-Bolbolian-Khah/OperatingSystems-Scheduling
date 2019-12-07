@@ -146,7 +146,7 @@ main(void)
 {
   static char buf[100];
   int fd;
-  setTicket(10000);
+  setTicket(1000);
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
     if(fd >= 3){
@@ -166,7 +166,7 @@ main(void)
     }
     if(fork1() == 0)
     {
-      setTicket(10000);
+      setTicket(1000);
       runcmd(parsecmd(buf));
     }
     wait();
