@@ -402,10 +402,8 @@ int findLottery(){
     ticketSum = ticketSum + p->mlfq.lotteryTicket;  
   }
   int selectedTicket;
-  if(ticketSum != 0)
-    selectedTicket = rand() % ticketSum;
-
   if(ticketSum != 0){
+    selectedTicket = rand() % ticketSum;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -457,7 +455,7 @@ int findHRRN(){
 int findSRPF(){
   struct proc *p;
   int foundPid = -1;
-  float minRemainedPriority = 28000;
+  float minRemainedPriority = 500000;
   struct proc *winner;
   int repeatedMinNum = 1;
   
@@ -481,16 +479,16 @@ int findSRPF(){
   }
 
   if(repeatedMinNum != 1){
-    int randNum = rand() % repeatedMinNum;
+    int randNum = (rand() % repeatedMinNum) +1;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if((p->state != RUNNABLE) && (p->mlfq.queueNumber != 3) && (p->mlfq.remainedPriority == minRemainedPriority)){
+      if((p->state == RUNNABLE) && (p->mlfq.queueNumber == 3) && (p->mlfq.remainedPriority == minRemainedPriority)){
         if(randNum==1){
           winner = p;
           foundPid = winner->pid;
           return foundPid;
         }
+        randNum--;
       }
-      randNum--;
     }
   }
   
@@ -504,7 +502,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  int queue[3] = {0,0,0};
+  int isThirdQueue = 0;
   int foundPid = -1;
   for(;;){
     // Enable interrupts on this processor.
@@ -515,20 +513,15 @@ scheduler(void)
 
     //---
 
+
     if( (foundPid = findLottery()) != -1) {
-      queue[0] = 1;
-      queue[1] = 0;
-      queue[2] = 0;
+      isThirdQueue = 0;
     }
     else if( (foundPid = findHRRN()) != -1) {
-      queue[0] = 0;
-      queue[1] = 1;
-      queue[2] = 0;
+      isThirdQueue = 0;
     }
     else if( (foundPid = findSRPF()) != -1) {
-      queue[0] = 0;
-      queue[1] = 0;
-      queue[2] = 1;
+      isThirdQueue = 1;
     }
     else{
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -551,7 +544,7 @@ scheduler(void)
           c->proc = p;
           c->proc->mlfq.executedCycleNumber+= 1;
 
-          if(queue[2] == 1){
+          if(isThirdQueue == 1){
             if( (c->proc->mlfq.remainedPriority - 0.1) < 0)
               c->proc->mlfq.remainedPriority = 0;
             else  
@@ -759,8 +752,6 @@ changeQueue(int pid, int queueNumber)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
    if(p->pid == pid) {
      p->mlfq.queueNumber = queueNumber;
-     cprintf("--Name:---%s",p->name);
-     cprintf("********HELOOO*******%d\n", p->mlfq.queueNumber);
      return 0;
    }
   }
@@ -774,8 +765,6 @@ setLotteryTicket(int pid, int newTicket)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
    if((p->mlfq.queueNumber == 1) && (p->pid == pid)) {
      p->mlfq.lotteryTicket = newTicket;
-     cprintf("--Name in lottery:---%s",p->name);
-     cprintf("********HELOOO*******%d\n", p->mlfq.lotteryTicket);
      return 0;
    }
   }
@@ -953,11 +942,6 @@ printInfo(void)
 
     cprintf("%d:%d:%d", p->mlfq.arrivalTime.hour, p->mlfq.arrivalTime.minute,p->mlfq.arrivalTime.second);
     cprintf("\n");
-    
-    
-
-
-
   }
 
   
