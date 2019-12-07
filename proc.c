@@ -93,7 +93,6 @@ found:
   p->mlfq.executedCycleNumber = 1;
   p->mlfq.remainedPriority = 1;
   p->mlfq.lotteryTicket = 10;
-
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -212,11 +211,11 @@ fork(void)
   }
 
     //----
-  cmostime(&(np->mlfq.arrivalTime));
-  np->mlfq.queueNumber = 1;
-  np->mlfq.executedCycleNumber = 1;
-  np->mlfq.remainedPriority = 1;
-  np->mlfq.lotteryTicket = 10;
+  // cmostime(&(np->mlfq.arrivalTime));
+  // np->mlfq.queueNumber = 1;
+  // np->mlfq.executedCycleNumber = 1;
+  // np->mlfq.remainedPriority = 1;
+  // np->mlfq.lotteryTicket = 10;
   //----
 
   np->sz = curproc->sz;
@@ -398,7 +397,7 @@ int findLottery(){
   cmostime(&currentTime);
   int selectedTicket;
   if(ticketSum != 0)
-    selectedTicket= (currentTime.second + currentTime.minute * 60 + currentTime.hour*98)%ticketSum;
+    selectedTicket= (currentTime.second + currentTime.minute * 60 + currentTime.hour*98544848)%ticketSum;
 
   // cprintf("Ticket Sum: %d\n",ticketSum);
   
@@ -455,7 +454,7 @@ int findHRRN(){
 int findSRPF(){
   struct proc *p;
   int foundPid = -1;
-  float minRemainedPriority = 280000;
+  float minRemainedPriority = 28000;
   struct proc *winner;
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -729,4 +728,214 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+changeQueue(int pid, int queueNumber)
+{
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+   if(p->pid == pid) {
+     p->mlfq.queueNumber = queueNumber;
+     cprintf("--Name:---%s",p->name);
+     cprintf("********HELOOO*******%d\n", p->mlfq.queueNumber);
+     return 0;
+   }
+  }
+  return -1;
+}
+
+int
+setLotteryTicket(int pid, int newTicket)
+{
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+   if((p->mlfq.queueNumber == 1) && (p->pid == pid)) {
+     p->mlfq.lotteryTicket = newTicket;
+     cprintf("--Name in lottery:---%s",p->name);
+     cprintf("********HELOOO*******%d\n", p->mlfq.lotteryTicket);
+     return 0;
+   }
+  }
+  return -1;
+}
+
+// Here is the disgusting part inorder to change float to string
+
+void
+reverse(char* str, int len) 
+{ 
+    int i = 0, j = len - 1, temp; 
+    while (i < j) { 
+        temp = str[i]; 
+        str[i] = str[j]; 
+        str[j] = temp; 
+        i++; 
+        j--; 
+    } 
+} 
+
+int 
+intToStr(int x, char str[], int d) 
+{ 
+    int i = 0;
+    if(x == 0 && d== 0){
+      str[i++] = '0';
+    } 
+    while (x) { 
+        str[i++] = (x % 10) + '0'; 
+        x = x / 10; 
+    } 
+  
+    // If number of digits required is more, then 
+    // add 0s at the beginning 
+    while (i < d) 
+        str[i++] = '0'; 
+  
+    reverse(str, i); 
+    str[i] = '\0'; 
+    return i; 
+} 
+
+void 
+floatToStr(float in, int afterpoint, char* res)
+{ 
+  int ipart = (int)in;
+  float fpart = in - (float)ipart; 
+  int i = intToStr(ipart, res, 0);
+  res[i] = '.'; // add dot 
+  fpart = fpart * 10; 
+  intToStr((int)fpart, res + i + 1, afterpoint);  
+}
+
+float
+strToFloat(char* s)
+{
+  float rez = 0, fact = 1;
+  if (*s == '-'){
+    s++;
+    fact = -1;
+  };
+  for (int point_seen = 0; *s; s++){
+    if (*s == '.'){
+      point_seen = 1; 
+      continue;
+    };
+    int d = *s - '0';
+    if (d >= 0 && d <= 9){
+      if (point_seen) fact /= 10.0f;
+      rez = rez * 10.0f + (float)d;
+    };
+  };
+  return rez * fact;
+
+}
+
+
+int
+setSRPFPriority(int pid, char* newStrPriority)
+{
+  struct proc *p;
+  float newPriority;
+  newPriority = strToFloat(newStrPriority);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if((p->mlfq.queueNumber == 3) && (p->pid == pid)) {
+      p->mlfq.remainedPriority = newPriority;
+      return 0;
+    }
+  }
+  return -1;  
+}
+
+void
+printState(struct proc *p)
+{
+  switch (p->state){
+    case 0:
+      cprintf("UNUSED    ");
+      break;
+    case 1:
+      cprintf("EMBRYO    ");
+      break;
+    case 2:
+      cprintf("SLEEPING  ");
+      break;
+    case 3:
+      cprintf("RUNNABLE  ");
+      break;
+    case 4:
+      cprintf("RUNNING   ");
+      break;
+    case 5:
+      cprintf("ZOMBIE    ");
+      break;
+
+  }
+}
+
+
+int
+printInfo(void)
+{
+  cprintf("name      pid  state     priority  ticket    queueNum  cycle  HRRN   createTime\n");
+  cprintf("-------------------------------------------------------------------------------\n");
+  
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == 0 || p->state == 1)
+      continue;
+    int size = strlen(p->name);
+    cprintf("%s",p->name);
+    for (int i = 0; i < 10 - size; i++)
+      cprintf(" ");
+    cprintf("%d",p->pid);
+    char buf[5];
+    intToStr(p->pid,buf,0);
+    size = strlen(buf);
+    for (int i = 0; i < 5 - size; i++)
+      cprintf(" ");
+    printState(p);
+    floatToStr(p->mlfq.remainedPriority,1,buf);
+    cprintf("%s", buf);
+    size = strlen(buf);
+    for (int i = 0; i < 10 - size; i++)
+      cprintf(" ");
+    cprintf("%d", p->mlfq.lotteryTicket);
+    intToStr(p->mlfq.lotteryTicket,buf,0);
+    size = strlen(buf);
+    for (int i = 0; i < 10 - size; i++)
+      cprintf(" ");
+    cprintf("%d", p->mlfq.queueNumber);
+    intToStr(p->mlfq.queueNumber,buf,0);
+    size = strlen(buf);
+    for (int i = 0; i < 10 - size; i++)
+      cprintf(" ");
+    cprintf("%d", p->mlfq.executedCycleNumber);
+    intToStr(p->mlfq.executedCycleNumber,buf,0);
+    size = strlen(buf);
+    for (int i = 0; i < 7 - size; i++)
+      cprintf(" ");
+    struct rtcdate currentTime;
+    int waitingTime;
+    float HRRN;
+    cmostime(&currentTime);
+    waitingTime = (currentTime.second - p->mlfq.arrivalTime.second) + (currentTime.minute - p->mlfq.arrivalTime.minute)*60 + (currentTime.hour - p->mlfq.arrivalTime.hour)*3600;
+    HRRN = waitingTime / p->mlfq.executedCycleNumber;
+    floatToStr(HRRN, 1, buf);
+    cprintf("%s",buf);
+    size = strlen(buf);
+    for (int i = 0; i < 7 - size; i++)
+      cprintf(" ");
+
+    cprintf("%d:%d:%d", p->mlfq.arrivalTime.hour, p->mlfq.arrivalTime.minute,p->mlfq.arrivalTime.second);
+    cprintf("\n");
+    
+    
+
+
+
+  }
+
+  
+  return 0;
 }

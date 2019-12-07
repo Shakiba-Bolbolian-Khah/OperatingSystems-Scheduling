@@ -104,6 +104,11 @@ extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 extern int sys_setTicket(void);
+extern int sys_changeQueue(void);
+extern int sys_setLotteryTicket(void);
+extern int sys_setSRPFPriority(void);
+extern int sys_printInfo(void);
+
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -128,6 +133,10 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_setTicket] sys_setTicket,
+[SYS_changeQueue] sys_changeQueue,
+[SYS_setLotteryTicket] sys_setLotteryTicket,
+[SYS_setSRPFPriority] sys_setSRPFPriority,
+[SYS_printInfo] sys_printInfo,
 };
 
 void

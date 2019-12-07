@@ -40,7 +40,7 @@ struct MLFQ
 {
   int queueNumber;
   int lotteryTicket;
-  double remainedPriority;
+  float remainedPriority;
   struct rtcdate arrivalTime;
   int executedCycleNumber;
 };

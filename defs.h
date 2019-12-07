@@ -120,7 +120,12 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-
+int             setLotteryTicket(int, int);
+int             changeQueue(int, int);
+int             setSRPFPriority(int, char*);
+int             printInfo(void);
+void            floatToStr(float,int, char*);
+float           strToFloat(char*);
 // swtch.S
 void            swtch(struct context**, struct context*);
 

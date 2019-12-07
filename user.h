@@ -24,6 +24,10 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int setTicket(int);
+int changeQueue(int, int);
+int setLotteryTicket(int, int);
+int setSRPFPriority(int, char*);
+int printInfo(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -25,3 +25,4 @@
 #define SYS_setLotteryTicket 24
 #define SYS_setSRPFPriority 25
 #define SYS_printInfo 26
+#define SYS_floatToStr 27
